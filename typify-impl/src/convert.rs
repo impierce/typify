@@ -8,7 +8,7 @@ use crate::type_entry::{
     Variant, VariantDetails,
 };
 use crate::util::{all_mutually_exclusive, recase, ref_key, Case, StringValidator};
-use log::{debug, info};
+use log::{debug, error, info};
 use schemars::schema::{
     ArrayValidation, InstanceType, Metadata, ObjectValidation, Schema, SchemaObject, SingleOrVec,
     StringValidation, SubschemaValidation,
@@ -49,6 +49,8 @@ impl TypeSpace {
         original_schema: &'a Schema,
         schema: &'a SchemaObject,
     ) -> Result<(TypeEntry, &'a Option<Box<Metadata>>)> {
+        info!("Email format found: {:?}", original_schema);
+
         match schema {
             // If we have a schema that has an instance type array that's
             // exactly two elements and one of them is Null, we have the
@@ -570,7 +572,6 @@ impl TypeSpace {
                 )?;
                 Ok((type_entry, metadata))
             }
-
             // Turn schemas with multiple types into an untagged enum labeled
             // according to the given type. We associate any validation with
             // the appropriate type. Note that the case of a 2-type list with
@@ -696,12 +697,57 @@ impl TypeSpace {
                 Ok((type_entry, metadata))
             }
 
+            SchemaObject {
+                metadata,
+                instance_type: None,
+                format: Some(format_str),
+                enum_values: None,
+                const_value: None,
+                subschemas: None,
+                number: None,
+                string: None,
+                array: None,
+                object: None,
+                reference: None,
+                extensions: _,
+            } => self.convert_format(format_str, metadata),
+
             // Unknown
             SchemaObject { .. } => todo!(
                 "invalid (or unexpected) schema:\n{}",
                 serde_json::to_string_pretty(schema).unwrap()
             ),
         }
+    }
+
+    fn convert_format<'a>(
+        &mut self,
+        format: &String,
+        metadata: &'a Option<Box<Metadata>>,
+    ) -> Result<(TypeEntry, &'a Option<Box<Metadata>>)> {
+        log::error!("Komt hier!");
+
+        match format.as_str() {
+            "email" => Ok((
+                TypeEntry::new_native("Email", &[TypeSpaceImpl::Display, TypeSpaceImpl::FromStr]),
+                metadata,
+            )),
+            _ => Err(Error::InvalidValue),
+        }
+
+        //panic!("komt hier");
+        //Some("email") => {
+        //error!("jep komt hier");
+        //Ok((
+        //TypeEntry::new_native(
+        //"String",
+        //&[TypeSpaceImpl::Display, TypeSpaceImpl::FromStr],
+        //),
+        //metadata,
+        //))
+        //}
+
+        //Ok((TypeEntry::new_boolean(), metadata))
     }
 
     fn convert_string<'a>(
